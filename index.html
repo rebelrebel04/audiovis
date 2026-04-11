@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>audiovis — Quine</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #000;
+        --fg: #e8e8e8;
+        --muted: #777;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        height: 100%;
+        overflow: hidden;
+      }
+      #app {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+      }
+      #stage {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        background: #000;
+      }
+      #canvas-wrap {
+        /* 9:16 aspect ratio, sized to fit available viewport */
+        aspect-ratio: 9 / 16;
+        height: min(100vh, calc(100vw * 16 / 9));
+        max-height: 100vh;
+        position: relative;
+        box-shadow: 0 0 60px rgba(255, 255, 255, 0.02);
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        pointer-events: none;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      #hud .rec {
+        color: #ff4747;
+        display: none;
+      }
+      #hud.recording .rec { display: inline; }
+      #dropzone {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+      #app.has-audio #dropzone { opacity: 0; }
+      #app.drag-over #dropzone { opacity: 1; color: var(--fg); }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <div id="canvas-wrap">
+          <canvas id="canvas"></canvas>
+          <div id="hud">
+            <span id="hud-track">no audio loaded</span>
+            <span class="rec">● REC</span>
+          </div>
+          <div id="dropzone">drop an audio file anywhere</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+renders/*.webm
+renders/*.mp4
+tracks/*
+!tracks/.gitkeep
+
+# Claude Code per-machine settings (user-local, not shared)
+.claude/settings.local.json
