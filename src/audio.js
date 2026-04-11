@@ -37,6 +37,17 @@ export class AudioEngine {
       mid: 0,
       high: 0,
     };
+    // Pre-envelope-follower features, but still auto-gain normalized.
+    // Exposed for onset detection, which *wants* the raw transient — the
+    // envelope follower smears kicks into ramps and kills rising edges.
+    // Keyed the same way as `features` so it's a drop-in for the beat
+    // detector. Attached as `features.raw` each sample().
+    this._featuresRaw = {
+      rms: 0,
+      low: 0,
+      mid: 0,
+      high: 0,
+    };
 
     // Envelope follower state (last smoothed values)
     this._env = { rms: 0, low: 0, mid: 0, high: 0 };
@@ -193,12 +204,18 @@ export class AudioEngine {
 
     // Auto-gain: normalize by a slowly-decaying per-band max so quiet vs loud
     // tracks both land roughly in [0,1]. Decays slowly so it adapts between
-    // sections but doesn't pump on every kick.
+    // sections but doesn't pump on every kick. softMax tracks the raw
+    // (pre-envelope) value so transient peaks set the ceiling — otherwise
+    // featuresRaw would regularly exceed 1.0 and the beat threshold would
+    // be meaningless.
     const decay = 0.9995;
+    const raw = { low: rawLow, mid: rawMid, high: rawHigh, rms: rawRms };
     for (const k of ['low', 'mid', 'high', 'rms']) {
-      this._softMax[k] = Math.max(this._softMax[k] * decay, this._env[k], 0.05);
-      this.features[k] = Math.min(1, this._env[k] / this._softMax[k]);
+      this._softMax[k] = Math.max(this._softMax[k] * decay, raw[k], 0.05);
+      this.features[k]     = Math.min(1, this._env[k] / this._softMax[k]);
+      this._featuresRaw[k] = Math.min(1, raw[k]       / this._softMax[k]);
     }
+    this.features.raw = this._featuresRaw;
     return this.features;
   }
 }

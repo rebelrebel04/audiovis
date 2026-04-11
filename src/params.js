@@ -1,5 +1,5 @@
 import GUI from 'lil-gui';
-import { SOURCES } from './modulation.js';
+import { SOURCES, BEAT_BANDS } from './modulation.js';
 
 /**
  * Params / UI
@@ -26,28 +26,45 @@ import { SOURCES } from './modulation.js';
  * parent folder keeps its position in the layout.
  */
 
-/** Add a modulatable scalar param as three rows (value + source + amount). */
+/**
+ * Add a modulatable scalar param.
+ *
+ * Layout: the base value slider is always visible; src + amount live in a
+ * closed-by-default sub-folder immediately below so they can be tucked away
+ * when you're not actively tweaking modulation. Click `↳ mod` to expand.
+ */
 function addModulated(folder, params, modulation, key, label) {
   const m = modulation[key];
   folder.add(params, key, m.min, m.max, m.step).name(label);
-  folder.add(m, 'source', SOURCES).name(`  ↳ src`);
-  // Amount's max is half the param range — enough to swing the full extent
-  // from either end of the base value.
-  const maxAmount = (m.max - m.min) / 2;
-  const amtStep = maxAmount / 200;
-  folder.add(m, 'amount', 0, maxAmount, amtStep).name(`  ↳ amt`);
+
+  const modSub = folder.addFolder(`  ↳ mod`);
+  modSub.add(m, 'source', SOURCES).name('src');
+  // Amount's max is the full param range. For symmetric sources (rand,
+  // lfo, audio bands) values past half-range just saturate at the clamp
+  // (harmless). For unipolar sources like `beat` the extra headroom lets
+  // you swing the whole param range on a single pulse.
+  const maxAmount = m.max - m.min;
+  const amtStep = maxAmount / 400;
+  modSub.add(m, 'amount', 0, maxAmount, amtStep).name('amt');
+  modSub.close();
 }
 
 /**
- * Add a modulatable color param as three rows (color picker + source + hue-shift amount).
- * Modulation for colors is hue-shift: amount is measured as a fraction of the
- * full color wheel (0 = no shift, 0.5 = ±180° swing = full wheel sweep).
+ * Add a modulatable color param.
+ *
+ * Same collapse behavior as addModulated: color picker stays visible, the
+ * source dropdown and hue-shift amount hide inside a closed sub-folder.
+ * Hue-shift amount is a fraction of the full color wheel (0 = no shift,
+ * 0.5 = ±180° swing = full wheel sweep).
  */
 function addModulatedColor(folder, params, modulation, key, label) {
   const m = modulation[key];
   folder.addColor(params, key).name(label);
-  folder.add(m, 'source', SOURCES).name(`  ↳ src`);
-  folder.add(m, 'amount', 0, 0.5, 0.005).name(`  ↳ hue shift`);
+
+  const modSub = folder.addFolder(`  ↳ mod`);
+  modSub.add(m, 'source', SOURCES).name('src');
+  modSub.add(m, 'amount', 0, 0.5, 0.005).name('hue shift');
+  modSub.close();
 }
 
 export function buildGui({
@@ -120,7 +137,7 @@ export function buildGui({
     [...primitiveFolder.controllers].forEach((c) => c.destroy());
   }
 
-  // --- Modulators (shared oscillators + audio smoothing) ---
+  // --- Modulators (shared oscillators + audio smoothing + beat) ---
   const modFolder = gui.addFolder('modulators');
   modFolder.add(bus, 'randRate',  0.01, 2, 0.01).name('rand-1 rate (Hz)');
   modFolder.add(bus, 'randRate2', 0.01, 2, 0.01).name('rand-2 rate (Hz)');
@@ -128,6 +145,44 @@ export function buildGui({
   modFolder.add(bus, 'lfoRate2',  0.01, 2, 0.01).name('lfo-2 rate (Hz)');
   modFolder.add(audio, 'attack',  0, 1, 0.01).name('audio attack');
   modFolder.add(audio, 'release', 0, 1, 0.01).name('audio release');
+  // Beat/onset detector — threshold on a selected band; pulses the `beat`
+  // source to 1.0 on rising edge and decays exponentially between fires.
+  modFolder.add(bus, 'beatSource',    BEAT_BANDS).name('beat source');
+  modFolder.add(bus, 'beatThreshold', 0, 1, 0.01).name('beat threshold');
+  modFolder.add(bus, 'beatDecay',     0.5, 15, 0.1).name('beat decay (1/s)');
+
+  // Beat detector indicator: a small dot that pulses whenever the beat
+  // source fires. Handy for diagnosing whether beats are being detected at
+  // all and for dialing in threshold / decay without having to map beat to
+  // something visual first. Styled to match lil-gui's dark row layout.
+  const beatIndicatorRow = document.createElement('div');
+  beatIndicatorRow.style.cssText = [
+    'display: flex',
+    'align-items: center',
+    'gap: 8px',
+    'padding: 4px 8px 4px 12px',
+    'font-size: 11px',
+    'color: #aaa',
+    'font-family: inherit',
+  ].join(';');
+  const beatIndicatorLabel = document.createElement('span');
+  beatIndicatorLabel.textContent = 'beat detector';
+  beatIndicatorLabel.style.cssText = 'flex: 1; opacity: 0.7';
+  const beatIndicator = document.createElement('div');
+  beatIndicator.style.cssText = [
+    'width: 10px',
+    'height: 10px',
+    'border-radius: 50%',
+    'background: #ff4747',
+    'opacity: 0.15',
+    'box-shadow: 0 0 0px #ff4747',
+    'transition: none',
+    'margin-right: 4px',
+  ].join(';');
+  beatIndicatorRow.appendChild(beatIndicatorLabel);
+  beatIndicatorRow.appendChild(beatIndicator);
+  modFolder.$children.appendChild(beatIndicatorRow);
+
   modFolder.open();
 
   // --- Trails (feedback post-effect, global) ---
@@ -148,5 +203,5 @@ export function buildGui({
   bloomFolder.add(bloom, 'threshold', 0, 1, 0.01).onChange(v => renderer.setBloom({ threshold: v }));
   bloomFolder.open();
 
-  return { gui, transport, mountPrimitive, unmountPrimitive };
+  return { gui, transport, mountPrimitive, unmountPrimitive, beatIndicator };
 }

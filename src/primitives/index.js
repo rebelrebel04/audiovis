@@ -1,5 +1,6 @@
 import * as polygonEnvelope from './polygonEnvelope.js';
 import * as particleRings from './particleRings.js';
+import * as lightPainting from './lightPainting.js';
 
 /**
  * Registry of available primitives, keyed by display name.
@@ -12,6 +13,7 @@ import * as particleRings from './particleRings.js';
 export const PRIMITIVES = {
   'polygon envelope': polygonEnvelope,
   'particle rings': particleRings,
+  'light painting': lightPainting,
 };
 
 export const DEFAULT_PRIMITIVE = 'polygon envelope';

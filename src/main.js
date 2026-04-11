@@ -45,7 +45,7 @@ let currentPrimitive = PRIMITIVES[DEFAULT_PRIMITIVE];
 currentPrimitive.init(renderer.scene);
 
 // --- UI ---
-const { transport, mountPrimitive, unmountPrimitive } = buildGui({
+const { transport, mountPrimitive, unmountPrimitive, beatIndicator } = buildGui({
   primitiveNames: Object.keys(PRIMITIVES),
   initialPrimitive: DEFAULT_PRIMITIVE,
   posteffects,
@@ -136,8 +136,8 @@ function frame() {
 
   // 1. Sample audio features
   const features = audio.sample();
-  // 2. Tick oscillators (rand / lfo)
-  bus.tick(dt, time);
+  // 2. Tick oscillators (rand / lfo) + beat detector (needs live audio)
+  bus.tick(dt, time, features);
   // 3. Update the current primitive with resolved modulation
   currentPrimitive.update({ time, dt, audio: features, bus });
   // 4. Resolve global post-effect params and push to renderer before render
@@ -156,6 +156,17 @@ function frame() {
   renderer.setTrails({ persistence, radialPush });
   // 5. Render the frame
   renderer.render();
+
+  // Beat indicator: map bus._beat (1.0 on fire, decays exponentially) to
+  // opacity + glow so the dot snaps bright on each onset and fades between
+  // hits. Read directly from the bus so we track the actual decay shape.
+  if (beatIndicator) {
+    const b = bus._beat;
+    const opacity = 0.15 + 0.85 * b;
+    const glow = 12 * b;
+    beatIndicator.style.opacity = opacity.toFixed(3);
+    beatIndicator.style.boxShadow = `0 0 ${glow.toFixed(1)}px #ff4747`;
+  }
 
   // 5. Sync scrubber + time display (skip scrubber while user is dragging)
   if (audio.buffer) {
