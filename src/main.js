@@ -1,20 +1,23 @@
 import { Renderer } from './renderer.js';
-import * as polygonEnvelope from './primitives/polygonEnvelope.js';
+import { PRIMITIVES, DEFAULT_PRIMITIVE } from './primitives/index.js';
 import { AudioEngine } from './audio.js';
-import { ModulationBus } from './modulation.js';
+import { ModulationBus, resolve } from './modulation.js';
 import { buildGui } from './params.js';
 import { Recorder } from './record.js';
+import * as posteffects from './posteffects.js';
 
 /**
  * Entry point: wires together renderer, primitive, audio, modulation bus,
  * UI, and recorder.
  *
  * The "primitive contract" is:
- *   { params, modulation, init(scene), update({ time, dt, audio, bus }) }
+ *   { params, modulation, init(scene), dispose(scene),
+ *     mountGui(parent, helpers), update({ time, dt, audio, bus }) }
  *
- * main.js is deliberately agnostic to which primitive is active so that
- * adding new primitives later (particle fields, glitch shaders, etc.)
- * requires only swapping the import and re-binding the UI.
+ * Primitives are registered in src/primitives/index.js and swappable at
+ * runtime via the GUI dropdown. switchPrimitive() handles disposing the
+ * current primitive's scene objects + GUI and bringing up the new one.
+ * Transport, modulation bus, and bloom are shared across primitives.
  */
 
 const canvas = document.getElementById('canvas');
@@ -24,10 +27,6 @@ const app = document.getElementById('app');
 
 // --- Renderer ---
 const renderer = new Renderer(canvas, { width: 1080, height: 1920 });
-
-// --- Primitive ---
-const primitive = polygonEnvelope;
-primitive.init(renderer.scene);
 
 // --- Audio ---
 const audio = new AudioEngine();
@@ -41,18 +40,44 @@ recorder.onStateChange = (recording) => {
   hud.classList.toggle('recording', recording);
 };
 
+// --- Primitive (mutable — swappable at runtime) ---
+let currentPrimitive = PRIMITIVES[DEFAULT_PRIMITIVE];
+currentPrimitive.init(renderer.scene);
+
 // --- UI ---
-const { transport } = buildGui({
-  primitiveParams: primitive.params,
-  primitiveModulation: primitive.modulation,
+const { transport, mountPrimitive, unmountPrimitive } = buildGui({
+  primitiveNames: Object.keys(PRIMITIVES),
+  initialPrimitive: DEFAULT_PRIMITIVE,
+  posteffects,
   renderer,
   audio,
   bus,
+  onPrimitiveChange: (name) => switchPrimitive(name),
   onPlayToggle: () => audio.toggle(),
   onSeekStart: () => audio.seekToStart(),
   onSeek: (normalized) => audio.seek(normalized * audio.duration),
   onRecordToggle: () => recorder.toggle(),
 });
+
+// Mount the default primitive's GUI after buildGui is done
+mountPrimitive(currentPrimitive);
+
+/**
+ * Swap the active primitive.
+ *
+ * Order matters: unmount GUI → dispose scene objects → init new → mount new.
+ * Doing dispose before init guarantees we never have two primitives' scene
+ * objects live at once, which would double-render and confuse bloom.
+ */
+function switchPrimitive(name) {
+  const next = PRIMITIVES[name];
+  if (!next || next === currentPrimitive) return;
+  unmountPrimitive();
+  currentPrimitive.dispose(renderer.scene);
+  currentPrimitive = next;
+  currentPrimitive.init(renderer.scene);
+  mountPrimitive(currentPrimitive);
+}
 
 // --- File loading (drag-and-drop) ---
 async function loadAudioFile(file) {
@@ -113,9 +138,23 @@ function frame() {
   const features = audio.sample();
   // 2. Tick oscillators (rand / lfo)
   bus.tick(dt, time);
-  // 3. Update primitive with resolved modulation
-  primitive.update({ time, dt, audio: features, bus });
-  // 4. Render the frame
+  // 3. Update the current primitive with resolved modulation
+  currentPrimitive.update({ time, dt, audio: features, bus });
+  // 4. Resolve global post-effect params and push to renderer before render
+  const persistence = resolve(
+    posteffects.params.trailPersistence,
+    posteffects.modulation.trailPersistence,
+    features,
+    bus,
+  );
+  const radialPush = resolve(
+    posteffects.params.trailRadialPush,
+    posteffects.modulation.trailRadialPush,
+    features,
+    bus,
+  );
+  renderer.setTrails({ persistence, radialPush });
+  // 5. Render the frame
   renderer.render();
 
   // 5. Sync scrubber + time display (skip scrubber while user is dragging)

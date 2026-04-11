@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RadialTrailsPass } from './RadialTrailsPass.js';
 
 /**
  * Renderer
@@ -43,12 +44,19 @@ export class Renderer {
     this.camera.position.set(0, 0, 5);
     this.camera.lookAt(0, 0, 0);
 
-    // Post-processing chain: scene render → bloom → output (tonemapping)
+    // Post-processing chain: scene → trails (feedback) → bloom → output.
+    // Trails live before bloom so their persistent content is bloomed too —
+    // that's what turns them into molten glowing streams rather than flat
+    // after-image copies. With persistence=0 the trails pass is a cheap
+    // pass-through, so it's safe to leave always-enabled.
     this.composer = new EffectComposer(this.renderer);
     this.composer.setSize(width, height);
 
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
+
+    this.trailsPass = new RadialTrailsPass({ damp: 0.0, radialPush: 0.0 });
+    this.composer.addPass(this.trailsPass);
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(width, height),
@@ -67,6 +75,12 @@ export class Renderer {
     if (strength !== undefined) this.bloomPass.strength = strength;
     if (radius !== undefined) this.bloomPass.radius = radius;
     if (threshold !== undefined) this.bloomPass.threshold = threshold;
+  }
+
+  /** Update trail feedback params (called each frame from main after modulation resolve). */
+  setTrails({ persistence, radialPush }) {
+    if (persistence !== undefined) this.trailsPass.uniforms.damp.value = persistence;
+    if (radialPush !== undefined) this.trailsPass.uniforms.radialPush.value = radialPush;
   }
 
   render() {

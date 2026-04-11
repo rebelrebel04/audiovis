@@ -176,6 +176,42 @@ export function init(scene) {
   phaseAccum = 0;
 }
 
+/** Remove scene objects and free GPU resources. Paired with init(). */
+export function dispose(scene) {
+  if (group) scene.remove(group);
+  if (geometry) geometry.dispose();
+  if (material) material.dispose();
+  lineSegments = null;
+  geometry = null;
+  material = null;
+  group = null;
+  cachedKey = '';
+}
+
+/**
+ * Populate a lil-gui parent folder with this primitive's controls.
+ * Called by params.js on mount; children are destroyed on primitive switch.
+ */
+export function mountGui(parent, { addModulated, addModulatedColor }) {
+  const geo = parent.addFolder('geometry');
+  geo.add(params, 'sides', 3, 20, 1).name('sides (N)');
+  geo.add(params, 'envelopeCoverage', 1, 20, 1).name('envelope coverage');
+  geo.add(params, 'lineCount', 8, 400, 1).name('line count');
+  addModulated(geo, params, modulation, 'polygonRadius', 'radius');
+  addModulated(geo, params, modulation, 'lineOpacity', 'line opacity');
+  addModulatedColor(geo, params, modulation, 'color', 'color');
+  geo.open();
+
+  const motion = parent.addFolder('motion');
+  addModulated(motion, params, modulation, 'rotationSpeedX', 'rot X');
+  addModulated(motion, params, modulation, 'rotationSpeedY', 'rot Y');
+  addModulated(motion, params, modulation, 'rotationSpeedZ', 'rot Z');
+  addModulated(motion, params, modulation, 'phaseSpeed', 'phase speed');
+  addModulated(motion, params, modulation, 'phaseAsymmetry', 'phase asym');
+  addModulated(motion, params, modulation, 'globalTilt', 'tilt');
+  motion.open();
+}
+
 /**
  * Per-frame update.
  * @param {object} ctx - { time, dt, audio, bus }
