@@ -5,6 +5,14 @@ import { ModulationBus, resolve } from './modulation.js';
 import { buildGui } from './params.js';
 import { Recorder } from './record.js';
 import * as posteffects from './posteffects.js';
+import {
+  snapshot as snapshotPreset,
+  apply as applyPreset,
+  PresetStore,
+  downloadPreset,
+  pickPresetFile,
+} from './presets.js';
+import { seedBuiltins } from './presetBank.js';
 
 /**
  * Entry point: wires together renderer, primitive, audio, modulation bus,
@@ -44,20 +52,90 @@ recorder.onStateChange = (recording) => {
 let currentPrimitive = PRIMITIVES[DEFAULT_PRIMITIVE];
 currentPrimitive.init(renderer.scene);
 
+// --- Preset store (localStorage-backed) ---
+// Constructed before buildGui so the preset folder can populate its
+// initial saved-list dropdown. seedBuiltins() idempotently installs the
+// curated starter bank on first launch (see presetBank.js) — user
+// deletions and edits survive subsequent launches.
+const presetStore = new PresetStore();
+seedBuiltins(presetStore);
+
 // --- UI ---
-const { transport, mountPrimitive, unmountPrimitive, beatIndicator } = buildGui({
+const { transport, mountPrimitive, unmountPrimitive, beatIndicator, refreshAll } = buildGui({
   primitiveNames: Object.keys(PRIMITIVES),
   initialPrimitive: DEFAULT_PRIMITIVE,
   posteffects,
   renderer,
   audio,
   bus,
+  presetStore,
   onPrimitiveChange: (name) => switchPrimitive(name),
   onPlayToggle: () => audio.toggle(),
   onSeekStart: () => audio.seekToStart(),
   onSeek: (normalized) => audio.seek(normalized * audio.duration),
   onRecordToggle: () => recorder.toggle(),
+  // --- Preset callbacks ---
+  // These live here (rather than inside params.js) because all the state
+  // they need to snapshot/apply is owned by main.js. params.js stays a
+  // thin UI layer that just asks "what are the buttons and what do they
+  // call?" — the logic of what "save" and "load" mean for this app
+  // belongs with the state owner.
+  onPresetSave: (name) => {
+    presetStore.save(name, captureSnapshot());
+  },
+  onPresetLoad: (name) => {
+    const snap = presetStore.load(name);
+    if (snap) applySnapshot(snap);
+  },
+  onPresetDelete: (name) => {
+    presetStore.delete(name);
+  },
+  onPresetExport: () => {
+    const snap = captureSnapshot();
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadPreset(`audiovis-${stamp}.json`, snap);
+  },
+  onPresetImport: async () => {
+    const snap = await pickPresetFile();
+    if (!snap) return null;
+    // Derive a storage name: prefer a stamp from the file so repeated
+    // imports don't collide. User can rename by saving-as afterward.
+    const name = `imported ${new Date().toLocaleString()}`;
+    presetStore.save(name, snap);
+    applySnapshot(snap);
+    return name;
+  },
 });
+
+/**
+ * Capture the current full state as a preset snapshot.
+ * Finds the active primitive's registry key (rather than storing it on
+ * the primitive module itself) so primitives stay name-agnostic.
+ */
+function captureSnapshot() {
+  const currentName = Object.keys(PRIMITIVES).find((n) => PRIMITIVES[n] === currentPrimitive);
+  return snapshotPreset({
+    primitives: PRIMITIVES,
+    currentPrimitiveName: currentName,
+    bus,
+    audio,
+    posteffects,
+    renderer,
+  });
+}
+
+/** Apply a snapshot to live state, triggering primitive swap + GUI refresh. */
+function applySnapshot(snap) {
+  applyPreset(snap, {
+    primitives: PRIMITIVES,
+    bus,
+    audio,
+    posteffects,
+    renderer,
+    setPrimitive: (name) => switchPrimitive(name),
+    refreshGui: () => refreshAll(),
+  });
+}
 
 // Mount the default primitive's GUI after buildGui is done
 mountPrimitive(currentPrimitive);

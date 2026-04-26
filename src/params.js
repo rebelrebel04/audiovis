@@ -74,11 +74,17 @@ export function buildGui({
   renderer,
   audio,
   bus,
+  presetStore,
   onPrimitiveChange,
   onRecordToggle,
   onPlayToggle,
   onSeekStart,
   onSeek,
+  onPresetSave,
+  onPresetLoad,
+  onPresetDelete,
+  onPresetExport,
+  onPresetImport,
 }) {
   const gui = new GUI({ title: 'audiovis' });
 
@@ -111,6 +117,87 @@ export function buildGui({
   transportFolder.add(transport, 'time').name('time').listen().disable();
   transportFolder.add(transport, 'record').name('● record / stop');
   transportFolder.open();
+
+  // --- Presets ---
+  // Located here (directly below transport, above primitive selector) so
+  // the "load a preset first, then tweak" workflow reads top-to-bottom.
+  // Loading a preset may switch the active primitive, so it has to sit
+  // above the primitive selector logically — and visually doing so keeps
+  // the full state-restoration controls together.
+  //
+  // On any mutation (save / delete / import) we rebuild the entire
+  // folder contents rather than trying to in-place-update the saved
+  // dropdown. lil-gui doesn't support stable in-place option updates, so
+  // destroy+re-add is the clean approach. Rebuilding the whole folder in
+  // a deterministic order keeps the layout perfectly stable.
+  const presetState = {
+    name: '',
+    selected: '',
+  };
+  const presetFolder = gui.addFolder('presets');
+  function buildPresetUI() {
+    // Tear down any existing children (controllers + sub-folders).
+    [...presetFolder.folders].forEach((f) => f.destroy());
+    [...presetFolder.controllers].forEach((c) => c.destroy());
+
+    presetFolder.add(presetState, 'name').name('name');
+    presetFolder
+      .add({
+        save: () => {
+          const name = presetState.name.trim();
+          if (!name) return;
+          onPresetSave?.(name);
+          presetState.selected = name;
+          buildPresetUI();
+        },
+      }, 'save')
+      .name('💾 save current');
+
+    const list = presetStore?.list() ?? [];
+    if (list.length > 0) {
+      if (!list.includes(presetState.selected)) presetState.selected = list[0];
+      presetFolder.add(presetState, 'selected', list).name('preset');
+      presetFolder
+        .add({
+          load: () => {
+            if (presetState.selected) onPresetLoad?.(presetState.selected);
+          },
+        }, 'load')
+        .name('⤴ load selected');
+      presetFolder
+        .add({
+          del: () => {
+            if (!presetState.selected) return;
+            if (!confirm(`Delete preset "${presetState.selected}"?`)) return;
+            onPresetDelete?.(presetState.selected);
+            buildPresetUI();
+          },
+        }, 'del')
+        .name('✕ delete selected');
+    } else {
+      // Placeholder row when nothing's saved yet — disables cleanly so
+      // it's obvious there's nothing to load.
+      const placeholder = { '(no saved presets)': '' };
+      presetFolder.add(placeholder, '(no saved presets)').disable();
+    }
+
+    presetFolder
+      .add({ exp: () => onPresetExport?.() }, 'exp')
+      .name('⬇ export JSON');
+    presetFolder
+      .add({
+        imp: async () => {
+          const importedName = await onPresetImport?.();
+          if (importedName) {
+            presetState.selected = importedName;
+            buildPresetUI();
+          }
+        },
+      }, 'imp')
+      .name('⬆ import JSON');
+  }
+  buildPresetUI();
+  presetFolder.open();
 
   // --- Primitive selector + mount point ---
   const selectorState = { primitive: initialPrimitive };
@@ -203,5 +290,25 @@ export function buildGui({
   bloomFolder.add(bloom, 'threshold', 0, 1, 0.01).onChange(v => renderer.setBloom({ threshold: v }));
   bloomFolder.open();
 
-  return { gui, transport, mountPrimitive, unmountPrimitive, beatIndicator };
+  /**
+   * Pull every controller's display value from its underlying model.
+   *
+   * Called after a preset load so that non-`.listen()`'d controllers
+   * (the vast majority, for perf) pick up the mutated state. Also
+   * re-syncs the local `bloom` mirror from renderer.bloomPass — since
+   * those sliders are bound to the local `bloom` object (not the pass
+   * directly), they'd otherwise still show the old values after a load.
+   *
+   * Primitive-specific controllers are rebuilt from scratch on
+   * mountPrimitive(), so they don't need updateDisplay — but calling
+   * it on them is harmless, and controllersRecursive() includes them.
+   */
+  function refreshAll() {
+    bloom.strength = renderer.bloomPass.strength;
+    bloom.radius = renderer.bloomPass.radius;
+    bloom.threshold = renderer.bloomPass.threshold;
+    gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  }
+
+  return { gui, transport, mountPrimitive, unmountPrimitive, beatIndicator, refreshAll };
 }
