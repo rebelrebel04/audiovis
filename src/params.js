@@ -285,7 +285,10 @@ export function buildGui({
     threshold: renderer.bloomPass.threshold,
   };
   const bloomFolder = gui.addFolder('bloom');
-  bloomFolder.add(bloom, 'strength', 0, 3, 0.01).onChange(v => renderer.setBloom({ strength: v }));
+  // Progressive-stride bloom can productively go higher than UnrealBloom's
+  // typical 0–3 range (Manifold uses 3.2 with HDR core). Slider tops at 5
+  // so users can dial in the full Manifold-style glow.
+  bloomFolder.add(bloom, 'strength', 0, 5, 0.01).onChange(v => renderer.setBloom({ strength: v }));
   bloomFolder.add(bloom, 'radius', 0, 2, 0.01).onChange(v => renderer.setBloom({ radius: v }));
   bloomFolder.add(bloom, 'threshold', 0, 1, 0.01).onChange(v => renderer.setBloom({ threshold: v }));
   bloomFolder.open();
