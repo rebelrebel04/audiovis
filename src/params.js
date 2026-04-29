@@ -182,7 +182,7 @@ export function buildGui({
     }
 
     presetFolder
-      .add({ exp: () => onPresetExport?.() }, 'exp')
+      .add({ exp: () => onPresetExport?.(presetState.selected) }, 'exp')
       .name('⬇ export JSON');
     presetFolder
       .add({

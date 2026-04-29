@@ -90,10 +90,14 @@ const { transport, mountPrimitive, unmountPrimitive, beatIndicator, refreshAll }
   onPresetDelete: (name) => {
     presetStore.delete(name);
   },
-  onPresetExport: () => {
+  onPresetExport: (selectedName) => {
     const snap = captureSnapshot();
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    downloadPreset(`audiovis-${stamp}.json`, snap);
+    const slug = selectedName
+      ? selectedName.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
+      : '';
+    const filename = slug ? `audiovis-${slug}-${stamp}.json` : `audiovis-${stamp}.json`;
+    downloadPreset(filename, snap);
   },
   onPresetImport: async () => {
     const snap = await pickPresetFile();
