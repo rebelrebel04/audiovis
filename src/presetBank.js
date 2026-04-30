@@ -24,10 +24,14 @@
 import { PRESET_VERSION } from './presets.js';
 
 const SEED_KEY = 'audiovis.presets.seed';
-// Bumped to 2 with the hyperspace tunnel batch. Existing v1 users will
-// get only the new entries added on next launch; their tweaks/deletions
-// of v1 built-ins survive. Fresh installs get everything.
-const CURRENT_SEED = 2;
+// Note: we don't carry a `CURRENT_SEED` constant — the "latest version"
+// is derived from `max(seedVersion)` across PRESET_BANK at runtime (see
+// seedBuiltins). This is more robust than a separate constant: during
+// module hot-reload races, an old presetBank.js with only v1 entries can
+// briefly resolve while a newer CURRENT_SEED constant has already taken
+// effect, causing the seed counter to bump past entries that aren't in
+// the loaded bank yet — they then get permanently skipped on subsequent
+// launches. Deriving the target from the bank itself eliminates that.
 
 /**
  * Small helper so each preset body reads like "primitive X with these
@@ -655,8 +659,15 @@ export const PRESET_BANK = [
  * built-ins is written at most once. User deletions survive — we don't
  * re-add presets from a seed version already processed.
  *
+ * The target seed value is `max(seedVersion)` across the loaded bank —
+ * NOT a separate constant. This guarantees that if the module ever
+ * loads in a partial state (HMR race, dev-server cache), we'll only
+ * advance the stored seed to whatever batch is actually present in the
+ * bank that ran. Next clean launch with the full bank will pick up
+ * anything we missed.
+ *
  * To ship new built-ins later: add them to PRESET_BANK tagged with a
- * higher `seedVersion`, and bump CURRENT_SEED. Existing entries stay
+ * higher `seedVersion`. No constant to bump. Existing entries stay
  * put; only the new ones are installed on next launch.
  */
 export function seedBuiltins(store) {
@@ -664,7 +675,15 @@ export function seedBuiltins(store) {
   try {
     lastSeed = parseInt(localStorage.getItem(SEED_KEY) || '0', 10) || 0;
   } catch {}
-  if (lastSeed >= CURRENT_SEED) return;
+
+  // Highest seedVersion present in the bank we loaded. This is our real
+  // target — not a hardcoded constant that could outpace the bank.
+  let bankMaxSv = 0;
+  for (const entry of PRESET_BANK) {
+    const sv = entry.seedVersion ?? 1;
+    if (sv > bankMaxSv) bankMaxSv = sv;
+  }
+  if (lastSeed >= bankMaxSv) return;
 
   let added = 0;
   for (const entry of PRESET_BANK) {
@@ -678,10 +697,10 @@ export function seedBuiltins(store) {
   }
 
   try {
-    localStorage.setItem(SEED_KEY, String(CURRENT_SEED));
+    localStorage.setItem(SEED_KEY, String(bankMaxSv));
   } catch {}
 
   if (added > 0) {
-    console.log(`[presets] seeded ${added} built-in presets`);
+    console.log(`[presets] seeded ${added} built-in presets (now at v${bankMaxSv})`);
   }
 }
