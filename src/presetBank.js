@@ -24,7 +24,10 @@
 import { PRESET_VERSION } from './presets.js';
 
 const SEED_KEY = 'audiovis.presets.seed';
-const CURRENT_SEED = 1;
+// Bumped to 2 with the hyperspace tunnel batch. Existing v1 users will
+// get only the new entries added on next launch; their tweaks/deletions
+// of v1 built-ins survive. Fresh installs get everything.
+const CURRENT_SEED = 2;
 
 /**
  * Small helper so each preset body reads like "primitive X with these
@@ -452,6 +455,190 @@ const LIGHT_PRESETS = [
 ];
 
 // =====================================================================
+// HYPERSPACE TUNNEL (seed version 2)
+// =====================================================================
+
+const HYPERSPACE_PRESETS = [
+  preset({
+    name: '🌌 classic warp',
+    primitive: 'hyperspace tunnel',
+    seedVersion: 2,
+    params: {
+      streakCount: 600,
+      speed: 4.5,
+      streakLength: 0.55,
+      innerRadius: 0.35,
+      outerRadius: 1.25,
+      lineWidth: 2.2,
+      brightness: 1.0,
+      sparkle: 0.35,
+      color: '#a8c8ff',
+      hueSpread: 0.18,
+      hdrPeak: 2.5,
+      fadeFalloff: 1.4,
+      beatBurst: 0.0,
+    },
+    modulation: {
+      outerRadius: { source: 'loud', amount: 0.30 },
+      lineWidth:   { source: 'high', amount: 2.0 },
+      speed:       { source: 'low',  amount: 1.5 },
+    },
+    bloom: { strength: 3.0, radius: 1.0, threshold: 0.0 },
+    posteffects: {
+      params: { trailPersistence: 0.0, trailRadialPush: 0.0 },
+      modulation: {
+        trailPersistence: { source: '—', amount: 0.05 },
+        trailRadialPush:  { source: '—', amount: 0.01 },
+      },
+    },
+  }),
+
+  preset({
+    name: '🌌 beat hyperdrive',
+    primitive: 'hyperspace tunnel',
+    seedVersion: 2,
+    params: {
+      // Dense, fast, beat-kicked. Halftime kick tracks land beautifully.
+      streakCount: 900,
+      speed: 3.2,
+      streakLength: 0.7,
+      innerRadius: 0.25,
+      outerRadius: 1.4,
+      lineWidth: 2.5,
+      brightness: 1.0,
+      sparkle: 0.25,
+      color: '#9fb4ff',
+      hueSpread: 0.22,
+      hdrPeak: 2.8,
+      fadeFalloff: 1.3,
+      // Each beat punches a 2.5x speed kick decaying over ~0.5s.
+      beatBurst: 2.5,
+      beatBurstDecay: 4.5,
+    },
+    modulation: {
+      outerRadius: { source: 'loud', amount: 0.25 },
+      lineWidth:   { source: 'high', amount: 3.0 },
+      brightness:  { source: 'beat', amount: 0.40 },
+    },
+    bus: {
+      beatSource: 'low',
+      beatThreshold: 0.4,
+      beatDecay: 5.0,
+    },
+    bloom: { strength: 3.5, radius: 1.0, threshold: 0.0 },
+    posteffects: {
+      params: { trailPersistence: 0.25, trailRadialPush: 0.005 },
+      modulation: {
+        trailPersistence: { source: '—',    amount: 0.10 },
+        trailRadialPush:  { source: 'loud', amount: 0.015 },
+      },
+    },
+  }),
+
+  preset({
+    name: '🌌 rainbow vortex',
+    primitive: 'hyperspace tunnel',
+    seedVersion: 2,
+    params: {
+      // High hue spread + per-streak seed variation = colorful tunnel.
+      streakCount: 800,
+      speed: 3.8,
+      streakLength: 0.6,
+      innerRadius: 0.3,
+      outerRadius: 1.3,
+      lineWidth: 2.4,
+      brightness: 1.0,
+      sparkle: 0.5,
+      color: '#ff6ad9',          // saturated magenta as the base; hueSpread fans it
+      hueSpread: 0.55,           // wide depth-driven hue rotation
+      hdrPeak: 2.6,
+      fadeFalloff: 1.4,
+      beatBurst: 0.0,
+    },
+    modulation: {
+      outerRadius: { source: 'loud',  amount: 0.25 },
+      lineWidth:   { source: 'high',  amount: 2.5 },
+      sparkle:     { source: 'lfo-1', amount: 0.30 },
+      color:       { source: 'rand-1', amount: 0.15 },
+    },
+    bus: { lfoRate: 0.08, randRate: 0.05 },
+    bloom: { strength: 3.2, radius: 1.1, threshold: 0.0 },
+  }),
+
+  preset({
+    name: '🌌 zen drift',
+    primitive: 'hyperspace tunnel',
+    seedVersion: 2,
+    params: {
+      // Slow, contemplative — feels like floating, not racing.
+      streakCount: 350,
+      speed: 1.2,
+      streakLength: 0.85,        // long streaks at slow speed = elegant trails
+      innerRadius: 0.2,
+      outerRadius: 1.0,
+      lineWidth: 2.8,
+      brightness: 0.85,
+      sparkle: 0.6,
+      color: '#cce0ff',
+      hueSpread: 0.1,
+      hdrPeak: 2.2,
+      fadeFalloff: 1.6,          // softer edges
+      beatBurst: 0.0,
+    },
+    modulation: {
+      outerRadius:  { source: 'lfo-1', amount: 0.15 },
+      lineWidth:    { source: 'high',  amount: 1.5 },
+      brightness:   { source: 'loud',  amount: 0.20 },
+      sparkle:      { source: 'lfo-2', amount: 0.30 },
+    },
+    bus: { lfoRate: 0.03, lfoRate2: 0.07 },
+    bloom: { strength: 2.2, radius: 1.2, threshold: 0.0 },
+  }),
+
+  preset({
+    name: '🌌 plasma storm',
+    primitive: 'hyperspace tunnel',
+    seedVersion: 2,
+    params: {
+      // Maxed-out chaos — high count, fast, wide, hot magenta/orange.
+      streakCount: 1400,
+      speed: 6.5,
+      streakLength: 0.4,         // shorter streaks at high speed = dense flecks
+      innerRadius: 0.15,
+      outerRadius: 1.5,
+      lineWidth: 1.6,
+      brightness: 1.0,
+      sparkle: 0.45,
+      color: '#ff7a3a',          // hot orange base
+      hueSpread: 0.4,            // fans toward magenta at depth
+      hdrPeak: 3.0,              // extra blowout
+      fadeFalloff: 1.2,          // crisper edges suit the chaos
+      beatBurst: 1.5,
+      beatBurstDecay: 5.5,
+    },
+    modulation: {
+      outerRadius: { source: 'loud', amount: 0.40 },
+      lineWidth:   { source: 'high', amount: 3.0 },
+      speed:       { source: 'mid',  amount: 2.5 },
+      brightness:  { source: 'beat', amount: 0.30 },
+    },
+    bus: {
+      beatSource: 'low',
+      beatThreshold: 0.5,
+      beatDecay: 6.0,
+    },
+    bloom: { strength: 3.8, radius: 0.9, threshold: 0.0 },
+    posteffects: {
+      params: { trailPersistence: 0.35, trailRadialPush: 0.012 },
+      modulation: {
+        trailPersistence: { source: '—',    amount: 0.10 },
+        trailRadialPush:  { source: 'loud', amount: 0.02 },
+      },
+    },
+  }),
+];
+
+// =====================================================================
 // EXPORT
 // =====================================================================
 
@@ -459,6 +646,7 @@ export const PRESET_BANK = [
   ...POLYGON_PRESETS,
   ...PARTICLE_PRESETS,
   ...LIGHT_PRESETS,
+  ...HYPERSPACE_PRESETS,
 ];
 
 /**

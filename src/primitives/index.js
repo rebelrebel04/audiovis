@@ -1,6 +1,7 @@
 import * as polygonEnvelope from './polygonEnvelope.js';
 import * as particleRings from './particleRings.js';
 import * as lightPainting from './lightPainting.js';
+import * as hyperspaceTunnel from './hyperspaceTunnel.js';
 
 /**
  * Registry of available primitives, keyed by display name.
@@ -14,6 +15,7 @@ export const PRIMITIVES = {
   'polygon envelope': polygonEnvelope,
   'particle rings': particleRings,
   'light painting': lightPainting,
+  'hyperspace tunnel': hyperspaceTunnel,
 };
 
 export const DEFAULT_PRIMITIVE = 'polygon envelope';
